@@ -95,6 +95,7 @@ double CubedSphereMeshGeometry::cellLength (int n1, int n2, int nr, int axis) co
                 case 2: return (getEdge (nr + 1, 2) - getEdge (nr, 2));
                 default: throw std::logic_error ("Axis argument not 0, 1, or 2");
             }
+            break;
         }
         case MappingMode::equiangle :
         {
@@ -111,8 +112,8 @@ double CubedSphereMeshGeometry::cellLength (int n1, int n2, int nr, int axis) co
                 case 2: return (getEdge (nr + 1, 2) - getEdge (nr, 2));
                 default: throw std::logic_error ("Axis argument not 0, 1, or 2");
             }
+            break;
         }
-        default: throw std::logic_error ("Mapping Mode not gnomonic");
     }
 }
 
@@ -154,6 +155,7 @@ double CubedSphereMeshGeometry::faceArea (int n1, int n2, int nr, int axis) cons
                 case 2: return r * r * (x1 - x0) * (y1 - y0) * (rpow(x0, y0,-3.0) + rpow(x0, y1, -3.0) + rpow(x1, y0, -3.0) + rpow(x1,y1,-3.0)) / 4.;
                 default: throw std::logic_error ("Axis argument not 0, 1, or 2");
             }
+            break;
         }
         case MappingMode::equiangle :
         {
@@ -168,72 +170,86 @@ double CubedSphereMeshGeometry::faceArea (int n1, int n2, int nr, int axis) cons
                 case 2: return r * r * (x1 - x0) * (y1 - y0) * (rpow(xs, ys,-3.0)/(cossq(x0) * cossq(y0)) + rpow(xs, ye, -3.0)/(cossq(x0) * cossq(y1)) + rpow(xe, ys, -3.0)/(cossq(x1) * cossq(y0)) + rpow(xe, ye, -3.0)/(cossq(x1) * cossq(y1))) / 4.;
                 default: throw std::logic_error ("Axis argument not 0, 1, or 2");
             }
+            break;
         }
-        default: throw std::logic_error ("Mapping Mode not gnomonic");
     }
 }
 
-UnitVector CubedSphereMeshGeometry::faceNormal (int i, int j, int k, int axis) const
+UnitVector CubedSphereMeshGeometry::faceNormal (int n1, int n2, int nr, int axis) const // modified
 {
+    Coordinate start = getVertexCoordinate(n1, n2, nr);
+    Coordinate end1 = getVertexCoordinate(n1+1, n2, nr);
+    Coordinate end2 = getVertexCoordinate(n1, n2+1, nr);
+    Coordinate end3 = getVertexCoordinate(n1, n2, nr+1);
+
+    Coordinate ihat = {{0,0,0}};
+    Coordinate jhat = {{0,0,0}};
+    Coordinate rhat = {{0,0,0}};
+    Coordinate rad = getVertexCoordinate(n1+0.5, n2+0.5, nr);
+
+    for (int d=0; d<3; ++d)
+    {
+        ihat[d] = end1[d] - start[d];
+        jhat[d] = end2[d] - start[d];
+        rhat[d] = end3[d] - start[d];
+    }
+
     switch (axis)
     {
-        case 0: return UnitVector::xhat;
-        case 1: return UnitVector::yhat;
-        case 2: return UnitVector::zhat;
+        case 0: return UnitVector::normalizeFrom(jhat[1] * rhat[2] - jhat[2] * rhat[1], jhat[2] * rhat[0] - jhat[0] * rhat[2], jhat[0] * rhat[1] - jhat[1] * rhat[0]);
+        case 1: return UnitVector::normalizeFrom(rhat[1] * ihat[2] - rhat[2] * ihat[1], rhat[2] * ihat[0] - rhat[0] * ihat[2], rhat[0] * ihat[1] - rhat[1] * ihat[0]);
+        case 2: return UnitVector::normalizeFrom(rad[0], rad[1], rad[2]);
         default: throw std::logic_error ("Axis argument not 0, 1, or 2");
     }
 }
 
 double CubedSphereMeshGeometry::edgeLength (int n1, int n2, int nr, int axis) const // modified
 {
-    const double x0 = getEdge (n1, 0);
-    const double y0 = getEdge (n2, 1);
-    const double r = getEdge (nr, 2);
+    Coordinate start = getVertexCoordinate(n1, n2, nr);
+    Coordinate end = {{0, 0, 0}};
+    double dis = 0;
 
-    const double x1 = getEdge (n1 + 1, 0);
-    const double y1 = getEdge (n2 + 1, 1);
-
-    switch (mappingMode)
-    {
-        case MappingMode::equidistance :
-        {
-            switch (axis)
-            {
-                case 0: return r * (x1 - x0) * (std::sqrt(y0 * y0 + 1) * rpow(x0, y0, -1.0) + std::sqrt(y0 * y0 + 1) * rpow(x1, y0, -1.0))/2.;
-                case 1: return r * (y1 - y0) * (std::sqrt(x0 * x0 + 1) * rpow(x0, y0, -1.0) + std::sqrt(x0 * x0 + 1) * rpow(x0, y1, -1.0))/2.;
-                case 2: return (getEdge (nr + 1, 2) - getEdge (nr, 2));
-                default: throw std::logic_error ("Axis argument not 0, 1, or 2");
-            }
-        }
-        case MappingMode::equiangle :
-        {
-            double xs = tan(x0);
-            double xe = tan(x1);
-            double ys = tan(y0);
-            double ye = tan(y1);
-            switch (axis)
-            {
-                case 0: return r * (xs - xe) * (std::sqrt(ys * ys + 1) * rpow(xs, ys, -1.0) / cossq(x0)
-                 + std::sqrt(ys * ys + 1) * rpow(xe, ys, -1.0) / cossq(x1) )/2.;
-                case 1: return r * (ys - ye) * (std::sqrt(xs * xs + 1) * rpow(xs, ys, -1.0) / cossq(y0)
-                 + std::sqrt(xs * xs + 1) * rpow(xs, ye, -1.0) / cossq(y1) )/2.;
-                case 2: return (getEdge (nr + 1, 2) - getEdge (nr, 2));
-                default: throw std::logic_error ("Axis argument not 0, 1, or 2");
-            }
-        }
-        default: throw std::logic_error ("Mapping Mode not gnomonic");
-    }
-}
-
-UnitVector CubedSphereMeshGeometry::edgeVector (int i, int j, int k, int axis) const
-{
     switch (axis)
     {
-        case 0: return UnitVector::xhat;
-        case 1: return UnitVector::yhat;
-        case 2: return UnitVector::zhat;
+        case 0:     
+            end = getVertexCoordinate(n1+1, n2, nr);
+            break;
+        case 1:             
+            end = getVertexCoordinate(n1, n2+1, nr);
+            break;
+        case 2:             
+            end = getVertexCoordinate(n1, n2, nr+1);
+            break;
         default: throw std::logic_error ("Axis argument not 0, 1, or 2");
     }
+
+    for (int d=0; d<3; ++d)
+    {
+        dis += (start[d] - end[d]) * (start[d] - end[d]);
+    }
+    return std::sqrt(dis);
+}
+
+UnitVector CubedSphereMeshGeometry::edgeVector (int n1, int n2, int nr, int axis) const //modified
+{
+    Coordinate start = getVertexCoordinate(n1, n2, nr);
+    Coordinate end = {{0, 0, 0}};
+
+    switch (axis)
+    {
+        case 0: 
+            end = getVertexCoordinate(n1+1, n2, nr);
+            break;
+        case 1: 
+            end = getVertexCoordinate(n1, n2+1, nr);
+            break;
+        case 2: 
+            end = getVertexCoordinate(n1, n2, nr+1);
+            break;
+        default: throw std::logic_error ("Axis argument not 0, 1, or 2");
+    }
+    return UnitVector::normalizeFrom(end[0]-start[0], end[1]-start[1], end[2]-start[2]);
+
 }
 
 Cow::Array CubedSphereMeshGeometry::getPointCoordinates (int axis) const
@@ -260,7 +276,7 @@ std::string CubedSphereMeshGeometry::getType() const
     return "CubedSphere";
 }
 
-double CubedSphereMeshGeometry::getEdge (double n, int axis) const
+double CubedSphereMeshGeometry::getEdge (double n, int axis) const // modified
 {
     switch (axis)
     {
@@ -293,11 +309,11 @@ Coordinate CubedSphereMeshGeometry::getVertexCoordinate(int n1, int n2, int nr) 
         case(MappingMode::equiangle):     
             e1 = tan(-PI/4. + n1 * PI/2. / shape[1]);
             e2 = tan(-PI/4. + n2 * PI/2. / shape[2]);
+            break;
         case(MappingMode::equidistance):  
             e1 = -1. + n1 * 2. / shape[1];
             e2 = -1. + n2 * 2. / shape[2];
-        default: throw std::logic_error ("Mapping Mode not gnomonic");
-
+            break;
     }
     Rnorm = sqrt(e1*e1 + e2*e2 + 1);
     switch(location)
@@ -305,28 +321,33 @@ Coordinate CubedSphereMeshGeometry::getVertexCoordinate(int n1, int n2, int nr) 
         case(Location::top): // local coord: ( x,  y,  z)
             coord[0] = e1 * R / Rnorm;
             coord[1] = e2 * R / Rnorm;
-            coord[2] = R / Rnorm;     
+            coord[2] = R / Rnorm;
+            break;     
         case(Location::bottom):  // local coord: (-x,  y, -z)
             coord[0] = - e1 * R / Rnorm;
             coord[1] = e2 * R / Rnorm;
             coord[2] = - R / Rnorm;
+            break;
         case(Location::left): // local coord: (-z,  x, -y)
             coord[0] = e2 * R / Rnorm;
             coord[1] = - R / Rnorm;     
             coord[2] = - e1 * R / Rnorm;
+            break;
         case(Location::right):  // local coord: (-z, -x,  y)
             coord[0] = - e2 * R / Rnorm;
             coord[1] = R / Rnorm;  
             coord[2] = - e1 * R / Rnorm;
+            break;
         case(Location::front): // local coord: (-z,  y,  x)
             coord[0] = R / Rnorm; 
             coord[1] = e2 * R / Rnorm;  
-            coord[2] = - e1 * R / Rnorm;  
+            coord[2] = - e1 * R / Rnorm;
+            break;  
         case(Location::back): // local coord: (-z, -y, -x)
             coord[0] = - R / Rnorm; 
             coord[1] = - e2 * R / Rnorm;
             coord[2] = - e1 * R / Rnorm;
-        default: throw std::logic_error ("Location not on one of six faces");
+            break;
     }
 
     return coord;
